@@ -14,6 +14,9 @@ if not folder_path or not os.path.isdir(folder_path):
     print("Error: Invalid folder selection!")
     exit()
 
+# Normalize folder path to ensure consistent use of forward slashes
+folder_path = os.path.normpath(folder_path)
+
 # Get .txt files
 file_paths = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".txt")]
 if not file_paths:
@@ -22,31 +25,41 @@ if not file_paths:
 
 # Create output folder
 processed_folder = os.path.join(folder_path, "Processed Raman data")
-os.makedirs(processed_folder, exist_ok=True)
+processed_folder = os.path.normpath(processed_folder)  # Normalize path
+
+try:
+    os.makedirs(processed_folder, exist_ok=True)
+except Exception as e:
+    print(f"Error: Could not create processed folder {processed_folder}: {e}")
+    exit()
+
+# Check if folder was created successfully
+if not os.path.exists(processed_folder):
+    print(f"Error: Processed folder was not created: {processed_folder}")
+    exit()
 
 # Define Origin project path
 project_path = os.path.join(processed_folder, "Raman_Analysis.opju")
+project_path = os.path.normpath(project_path)  # Normalize path
 
 # Check folder permissions
+test_file_path = os.path.join(processed_folder, "test.txt")
+test_file_path = os.path.normpath(test_file_path)
 try:
-    with open(os.path.join(processed_folder, "test.txt"), "w") as test_file:
+    with open(test_file_path, "w") as test_file:
         test_file.write("Write test successful.")
-    os.remove(os.path.join(processed_folder, "test.txt"))
+    os.remove(test_file_path)
 except Exception as e:
     print(f"Error: Cannot write to folder {processed_folder}: {e}")
     exit()
 
-# Open Origin and ensure a valid project
-if not op.project:
-    print("No active Origin project detected. Creating a new one...")
-    op.new()
-    print("New Origin project initialized.")
-else:
-    print("Active Origin project detected.")
+# Open Origin
+op.new()
 
 # Process files
 try:
     for file_path in file_paths:
+        file_path = os.path.normpath(file_path)  # Normalize path
         try:
             filename = os.path.splitext(os.path.basename(file_path))[0]
             
@@ -67,7 +80,7 @@ try:
             # Create and attach graph
             graph = op.new_graph(template="Line")
             layer = graph[0]
-            layer.add_plot(wks, 0, 1)
+            layer.add_plot(wks, 1, 0)
             layer.x_label = "Raman Shift (cm⁻¹)"
             layer.y_label = "Intensity (a.u.)"
             layer.rescale()
@@ -80,12 +93,16 @@ finally:
     if op.project:
         print(f"Attempting to save Origin project to: {project_path}")
         try:
-            op.project.save(project_path)
+            # Ensure the project is saved with an explicit path
+            op.project.save(project_path)  # Explicitly provide the path
             time.sleep(2)  # Allow save to complete
+            
+            # Check if the file was created
             if os.path.exists(project_path):
-                print(f"Successfully saved Origin project: {project_path}")
+                print(f"Successfully saved Origin project to: {project_path}")
             else:
                 print(f"Error: Origin project file was not created at {project_path}!")
+
         except Exception as save_error:
             print(f"Error saving project: {save_error}")
     else:
