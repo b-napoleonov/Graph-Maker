@@ -84,6 +84,7 @@ try:
             layer.x_label = "Raman Shift (cm⁻¹)"
             layer.y_label = "Intensity (a.u.)"
             layer.rescale()
+            layer.set_xlim(0, "auto")  # Ensure no data below 0 is shown
         
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
