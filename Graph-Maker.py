@@ -80,7 +80,10 @@ try:
             # Create and attach graph
             graph = op.new_graph(template="Line")
             layer = graph[0]
-            layer.add_plot(wks, 1, 0)
+            plot = layer.add_plot(wks, 1, 0)
+            plot.color = "red"
+            plot.set_str("connect", "spline")  # Set connect type to b-spline
+            plot.set_int("line.width", 2)  # Set plot width to 2
             layer.x_label = "Raman Shift (cm⁻¹)"
             layer.y_label = "Intensity (a.u.)"
             layer.rescale()
