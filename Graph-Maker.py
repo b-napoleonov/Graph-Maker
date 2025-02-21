@@ -71,11 +71,14 @@ try:
             # Load data
             data = np.loadtxt(file_path, skiprows=skip_rows)
             wave, intensity = data[:, 0], data[:, 1]
+            
+            # Normalize intensity
+            intensity = intensity / np.max(intensity)
 
             # Create new worksheet
             wks = op.new_sheet("w", filename)
             wks.from_list(0, wave, "Raman Shift (cm⁻¹)")
-            wks.from_list(1, intensity, "Intensity (a.u.)")
+            wks.from_list(1, intensity, "Normalized Intensity (a.u.)")
 
             # Create and attach graph
             graph = op.new_graph(template="Line")
@@ -87,7 +90,8 @@ try:
             layer.x_label = "Raman Shift (cm⁻¹)"
             layer.y_label = "Intensity (a.u.)"
             layer.rescale()
-            layer.set_xlim(0, "auto")  # Ensure no data below 0 is shown
+            layer.set_xlim(0)  # Ensure no data below 0 is shown
+            layer.set_ylim(0, 1.1, 0.2)  # Ensure no data below 0 is shown
         
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
