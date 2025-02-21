@@ -62,9 +62,12 @@ for file_path in file_paths:
         skip_rows = 1 if any(c.isalpha() for c in first_line) else 0
 
         # Load data
-        data = np.loadtxt(file_path, skiprows=skip_rows)
-        if data.ndim != 2 or data.shape[1] < 2:
-            error_message = f"Error: Invalid data format in {file_path}\n"
+        try:
+            data = np.loadtxt(file_path, skiprows=skip_rows)
+            if data.ndim != 2 or data.shape[1] < 2:
+                raise ValueError("Invalid data format")
+        except Exception as e:
+            error_message = f"Error: Invalid data format in {file_path}: {e}\n"
             with open(error_log_path, "a") as log_file:
                 log_file.write(error_message)
             continue
@@ -73,8 +76,8 @@ for file_path in file_paths:
 
         # Normalize intensity
         max_intensity = np.max(intensity)
-        if max_intensity == 0:
-            warning_message = f"Warning: Maximum intensity is zero in {file_path}, skipping normalization.\n"
+        if max_intensity == 0 or np.isnan(max_intensity):
+            warning_message = f"Warning: Maximum intensity is zero or NaN in {file_path}, skipping normalization.\n"
             with open(error_log_path, "a") as log_file:
                 log_file.write(warning_message)
         else:
@@ -95,20 +98,21 @@ for file_path in file_paths:
         layer.x_label = "Raman Shift (cm⁻¹)"
         layer.y_label = "Intensity (a.u.)"
         layer.rescale()
-        layer.set_xlim(0, np.max(wave))
+        if wave.size > 0:
+            layer.set_xlim(0, np.max(wave))
         layer.set_ylim(0, 1.1, 0.2)
     except Exception as e:
         error_message = f"Error processing {file_path}: {e}\n"
         with open(error_log_path, "a") as log_file:
             log_file.write(error_message)
 
-# Save project with retry mechanism
+# Save project with exponential backoff retry mechanism
 if op.project:
     print(f"Attempting to save Origin project to: {project_path}")
     for attempt in range(3):
         try:
             op.project.save(project_path)
-            time.sleep(2)
+            time.sleep(2 ** attempt)  # Exponential backoff
             if os.path.exists(project_path):
                 print(f"Successfully saved Origin project to: {project_path}")
                 break
