@@ -1,18 +1,17 @@
 import os
 import numpy as np
 import originpro as op
-from tkinter import Tk, filedialog
+from tkinter import Tk, filedialog, messagebox
 import time
 
 # Open file dialog
 root = Tk()
 root.withdraw()
-folder_path = filedialog.askdirectory(title="Select folder with Raman raw data")
-
-# Check for valid selection
-if not folder_path or not os.path.isdir(folder_path):
-    print("Error: Invalid folder selection!")
-    exit()
+while True:
+    folder_path = filedialog.askdirectory(title="Select folder with Raman raw data")
+    if folder_path and os.path.isdir(folder_path):
+        break
+    messagebox.showerror("Error", "Invalid folder selection! Please select a valid folder.")
 
 # Normalize folder path
 folder_path = os.path.normpath(folder_path)
@@ -48,6 +47,9 @@ except Exception as e:
 # Open Origin
 op.new()
 
+# Initialize error log file
+error_log_path = os.path.join(processed_folder, "error_log.txt")
+
 # Process files
 for file_path in file_paths:
     file_path = os.path.normpath(file_path)
@@ -62,13 +64,21 @@ for file_path in file_paths:
         # Load data
         data = np.loadtxt(file_path, skiprows=skip_rows)
         if data.ndim != 2 or data.shape[1] < 2:
-            print(f"Error: Invalid data format in {file_path}")
+            error_message = f"Error: Invalid data format in {file_path}\n"
+            with open(error_log_path, "a") as log_file:
+                log_file.write(error_message)
             continue
         
         wave, intensity = data[:, 0], data[:, 1]
 
         # Normalize intensity
-        intensity = intensity / np.max(intensity)
+        max_intensity = np.max(intensity)
+        if max_intensity == 0:
+            warning_message = f"Warning: Maximum intensity is zero in {file_path}, skipping normalization.\n"
+            with open(error_log_path, "a") as log_file:
+                log_file.write(warning_message)
+        else:
+            intensity = intensity / max_intensity
 
         # Create new worksheet
         wks = op.new_sheet("w", filename)
@@ -85,25 +95,35 @@ for file_path in file_paths:
         layer.x_label = "Raman Shift (cm⁻¹)"
         layer.y_label = "Intensity (a.u.)"
         layer.rescale()
-        layer.set_xlim(0)
+        layer.set_xlim(0, np.max(wave))
         layer.set_ylim(0, 1.1, 0.2)
     except Exception as e:
-        print(f"Error processing {file_path}: {e}")
+        error_message = f"Error processing {file_path}: {e}\n"
+        with open(error_log_path, "a") as log_file:
+            log_file.write(error_message)
 
-# Save project
+# Save project with retry mechanism
 if op.project:
     print(f"Attempting to save Origin project to: {project_path}")
-    try:
-        op.project.save(project_path)
-        time.sleep(2)
-        if os.path.exists(project_path):
-            print(f"Successfully saved Origin project to: {project_path}")
-        else:
-            print(f"Error: Origin project file was not created at {project_path}!")
-    except Exception as save_error:
-        print(f"Error saving project: {save_error}")
+    for attempt in range(3):
+        try:
+            op.project.save(project_path)
+            time.sleep(2)
+            if os.path.exists(project_path):
+                print(f"Successfully saved Origin project to: {project_path}")
+                break
+            else:
+                print(f"Warning: Attempt {attempt + 1} failed, retrying...")
+        except Exception as save_error:
+            error_message = f"Error saving project (attempt {attempt + 1}): {save_error}\n"
+            with open(error_log_path, "a") as log_file:
+                log_file.write(error_message)
+            if attempt == 2:
+                print("Failed to save project after 3 attempts.")
 else:
-    print("Error: No active Origin project to save.")
+    error_message = "Error: No active Origin project to save.\n"
+    with open(error_log_path, "a") as log_file:
+        log_file.write(error_message)
 
 print("Closing Origin...")
 time.sleep(2)
