@@ -9,7 +9,10 @@ root = Tk()
 root.withdraw()
 while True:
     folder_path = filedialog.askdirectory(title="Select folder with Raman raw data")
-    if folder_path and os.path.isdir(folder_path):
+    if not folder_path:
+        messagebox.showinfo("Info", "No folder selected. Exiting.")
+        exit()  # Allow user to cancel
+    if os.path.isdir(folder_path):
         break
     messagebox.showerror("Error", "Invalid folder selection! Please select a valid folder.")
 
@@ -44,11 +47,15 @@ except Exception as e:
     print(f"Error: Cannot write to folder {processed_folder}: {e}")
     exit()
 
-# Open Origin
+# Open Origin only if there are valid files
 op.new()
 
 # Initialize error log file
 error_log_path = os.path.join(processed_folder, "error_log.txt")
+
+def log_error(message):
+    with open(error_log_path, "a") as log_file:
+        log_file.write(message)
 
 # Process files
 for file_path in file_paths:
@@ -59,7 +66,7 @@ for file_path in file_paths:
         # Check if first row is a header
         with open(file_path, "r") as f:
             first_line = f.readline()
-        skip_rows = 1 if any(c.isalpha() for c in first_line) else 0
+        skip_rows = 1 if first_line.strip() and first_line[0].isalpha() else 0
 
         # Load data
         try:
@@ -67,9 +74,7 @@ for file_path in file_paths:
             if data.ndim != 2 or data.shape[1] < 2:
                 raise ValueError("Invalid data format")
         except Exception as e:
-            error_message = f"Error: Invalid data format in {file_path}: {e}\n"
-            with open(error_log_path, "a") as log_file:
-                log_file.write(error_message)
+            log_error(f"Error: Invalid data format in {file_path}: {e}\n")
             continue
         
         wave, intensity = data[:, 0], data[:, 1]
@@ -77,9 +82,7 @@ for file_path in file_paths:
         # Normalize intensity
         max_intensity = np.max(intensity)
         if max_intensity == 0 or np.isnan(max_intensity):
-            warning_message = f"Warning: Maximum intensity is zero or NaN in {file_path}, skipping normalization.\n"
-            with open(error_log_path, "a") as log_file:
-                log_file.write(warning_message)
+            log_error(f"Warning: Maximum intensity is zero or NaN in {file_path}, skipping normalization.\n")
         else:
             intensity = intensity / max_intensity
 
@@ -100,11 +103,10 @@ for file_path in file_paths:
         layer.rescale()
         if wave.size > 0:
             layer.set_xlim(0, np.max(wave))
-        layer.set_ylim(0, 1.1, 0.2)
+        layer.set_ylim(0, np.max(intensity) * 1.1 if np.max(intensity) > 0 else 1.1, 0.2)
+        layer.y_show_labels = False  # Remove numbers from the y-axis
     except Exception as e:
-        error_message = f"Error processing {file_path}: {e}\n"
-        with open(error_log_path, "a") as log_file:
-            log_file.write(error_message)
+        log_error(f"Error processing {file_path}: {e}\n")
 
 # Save project with exponential backoff retry mechanism
 if op.project:
@@ -119,15 +121,11 @@ if op.project:
             else:
                 print(f"Warning: Attempt {attempt + 1} failed, retrying...")
         except Exception as save_error:
-            error_message = f"Error saving project (attempt {attempt + 1}): {save_error}\n"
-            with open(error_log_path, "a") as log_file:
-                log_file.write(error_message)
+            log_error(f"Error saving project (attempt {attempt + 1}): {save_error}\n")
             if attempt == 2:
                 print("Failed to save project after 3 attempts.")
 else:
-    error_message = "Error: No active Origin project to save.\n"
-    with open(error_log_path, "a") as log_file:
-        log_file.write(error_message)
+    log_error("Error: No active Origin project to save.\n")
 
 print("Closing Origin...")
 time.sleep(2)
