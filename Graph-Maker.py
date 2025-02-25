@@ -96,7 +96,8 @@ for file_path in file_paths:
         layer = graph[0]
         plot = layer.add_plot(wks, 1, 0)
         plot.color = "red"
-        plot.set_str("connect", "spline")  # Set connect type to b-spline
+        #plot.set_int("-l", 8)  # Set connect type to b-spline
+        op.lt_exec('set %C -l 8;')
         plot.set_int("line.width", 2)
         layer.x_label = "Raman Shift (cm⁻¹)"
         layer.y_label = "Intensity (a.u.)"
@@ -104,7 +105,6 @@ for file_path in file_paths:
         if wave.size > 0:
             layer.set_xlim(0, np.max(wave))
         layer.set_ylim(0, np.max(intensity) * 1.1 if np.max(intensity) > 0 else 1.1, 0.2)
-        layer.y_show_labels = False  # Remove numbers from the y-axis
     except Exception as e:
         log_error(f"Error processing {file_path}: {e}\n")
 
